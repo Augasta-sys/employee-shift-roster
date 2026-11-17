@@ -9,7 +9,7 @@
   "lint": "eslint .",
   "preview": "vite preview",
   "server": "json-server --watch db.json --port 5000",
-  "start": "json-server db.json --host 0.0.0.0 --port $PORT",
+  "start": "node -e \"const d=require('./db.json'); console.log('DATABASE CHECK:', Object.fromEntries(Object.entries(d).filter(([,v])=>Array.isArray(v)).map(([k,v])=>[k,v.length])))\" && json-server ./db.json --host 0.0.0.0 --port $PORT",
   "dev:all": "concurrently \"npm run server\" \"npm run dev\""
 },
   "dependencies": {
