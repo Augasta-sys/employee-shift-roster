@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -7,9 +7,18 @@ import {
   LogOut,
   Menu,
   Moon,
-  Search,
   Sun,
+  Search,
   UserCircle,
+  LayoutDashboard,
+  Users,
+  Building2,
+  CalendarDays,
+  ClipboardList,
+  RefreshCw,
+  BellRing,
+  Activity,
+  X,
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
@@ -19,6 +28,65 @@ interface DashboardHeaderProps {
   onMenuClick: () => void;
   onSearch: (value: string) => void;
 }
+
+const searchItems = [
+  {
+    name: "Dashboard",
+    description: "View dashboard overview",
+    keywords: "dashboard overview home",
+    path: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    name: "Employees",
+    description: "Manage employee information",
+    keywords: "employees staff employee management",
+    path: "/employees",
+    icon: Users,
+  },
+  {
+    name: "Departments",
+    description: "View and manage departments",
+    keywords: "departments department",
+    path: "/departments",
+    icon: Building2,
+  },
+  {
+    name: "Shifts",
+    description: "Manage available shifts",
+    keywords: "shifts shift schedule timing",
+    path: "/shifts",
+    icon: CalendarDays,
+  },
+  {
+    name: "Shift Assignments",
+    description: "View employee shift assignments",
+    keywords: "assignments assigned roster employee shifts",
+    path: "/assignments",
+    icon: ClipboardList,
+  },
+  {
+    name: "Rotation Rules",
+    description: "Manage shift rotation rules",
+    keywords: "rotation rules schedule rotation",
+    path: "/rotation-rules",
+    icon: RefreshCw,
+  },
+  {
+    name: "Notifications",
+    description: "View recent notifications",
+    keywords: "notifications alerts messages",
+    path: "/notifications",
+    icon: BellRing,
+  },
+  {
+    name: "Activity Logs",
+    description: "View system activity history",
+    keywords: "activity logs history activities",
+    path: "/activity-logs",
+    icon: Activity,
+  },
+];
 
 const DashboardHeader = ({
   onMenuClick,
@@ -30,8 +98,41 @@ const DashboardHeader = ({
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const isDark = theme === "dark";
+
+  const filteredItems = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+
+    if (!query) return [];
+
+    return searchItems.filter((item) =>
+      `${item.name} ${item.description} ${item.keywords}`
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [searchValue]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
+        setSearchOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -48,11 +149,66 @@ const DashboardHeader = ({
   const handleSearchChange = (value: string) => {
     setSearchValue(value);
     onSearch(value);
+    setSearchOpen(true);
+    setActiveIndex(-1);
+  };
+
+  const handleSelect = (item: (typeof searchItems)[number]) => {
+    setSearchValue(item.name);
+    onSearch(item.name);
+    setSearchOpen(false);
+    navigate(item.path);
+  };
+
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Escape") {
+      setSearchOpen(false);
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSearchOpen(true);
+      setActiveIndex((prev) =>
+        Math.min(prev + 1, filteredItems.length - 1)
+      );
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => Math.max(prev - 1, 0));
+    }
+
+    if (e.key === "Enter" && activeIndex >= 0) {
+      e.preventDefault();
+      const selectedItem = filteredItems[activeIndex];
+
+      if (selectedItem) handleSelect(selectedItem);
+    }
+  };
+
+  const highlightText = (text: string, query: string) => {
+    const index = text.toLowerCase().indexOf(query.toLowerCase());
+
+    if (index === -1 || !query) return text;
+
+    return (
+      <>
+        {text.slice(0, index)}
+        <span className="font-semibold text-blue-600 dark:text-blue-400">
+          {text.slice(index, index + query.length)}
+        </span>
+        {text.slice(index + query.length)}
+      </>
+    );
   };
 
   return (
     <header className="relative z-30 flex h-[76px] shrink-0 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:px-6 lg:px-8">
-      {/* Left section */}
+
+      {/* Left Section */}
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
@@ -73,26 +229,113 @@ const DashboardHeader = ({
         </div>
       </div>
 
-      {/* Search */}
-      <div className="mx-auto hidden w-full max-w-[340px] md:block">
+      {/* Search with Autocomplete */}
+      <div
+        ref={searchRef}
+        className="relative mx-auto hidden w-full max-w-[380px] md:block"
+      >
         <div className="relative">
           <Search
             size={17}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
           />
+
           <input
             type="search"
             value={searchValue}
             onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() => {
+              if (searchValue.trim()) setSearchOpen(true);
+            }}
+            onKeyDown={handleKeyDown}
             placeholder="Search dashboard data..."
-            className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+            role="combobox"
+            aria-expanded={searchOpen && searchValue.trim().length > 0}
+            aria-controls="dashboard-search-results"
+            aria-autocomplete="list"
+            className="h-10 w-full appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
           />
+
+          {searchValue && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchValue("");
+                onSearch("");
+                setSearchOpen(false);
+              }}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
+
+        {searchOpen && searchValue.trim() && (
+          <div
+            id="dashboard-search-results"
+            role="listbox"
+            className="absolute left-0 top-full z-[100] mt-2 max-h-[360px] w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          >
+            <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Search Results
+            </p>
+
+            {filteredItems.length > 0 ? (
+              filteredItems.map((item, index) => {
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.path}
+                    type="button"
+                    role="option"
+                    aria-selected={activeIndex === index}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(item)}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition ${
+                      activeIndex === index
+                        ? "bg-blue-50 dark:bg-blue-500/10"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                      <Icon size={17} />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-800 dark:text-white">
+                        {highlightText(item.name, searchValue.trim())}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {item.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-3 py-7 text-center">
+                <Search
+                  size={23}
+                  className="mx-auto mb-2 text-slate-400"
+                />
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  No results found
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Try searching for another section.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Right section */}
+      {/* Right Section */}
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
-
         <button
           type="button"
           onClick={() => navigate("/notifications")}
@@ -111,6 +354,7 @@ const DashboardHeader = ({
           {isDark ? <Sun size={19} /> : <Moon size={19} />}
         </button>
 
+        {/* User Menu */}
         <div className="relative ml-1">
           <button
             type="button"
@@ -130,7 +374,10 @@ const DashboardHeader = ({
               </p>
             </div>
 
-            <ChevronDown size={15} className="hidden text-slate-400 sm:block" />
+            <ChevronDown
+              size={15}
+              className="hidden text-slate-400 sm:block"
+            />
           </button>
 
           {menuOpen && (
